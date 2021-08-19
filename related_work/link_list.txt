@@ -1,0 +1,19 @@
+Paper Links:
+Deep Reinforcement Learning for Autonomous Traffic Light Control - https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=8492537
+Smart Traffic Light System Using Machine Learning - https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=8603041
+Virtual Traffic Lights - https://arxiv.org/pdf/1807.01633.pdf
+Adaptive Quasi-Dynamic Traffic Light Control - https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=7229317
+Traffic Signal Timing via Deep Reinforcement Learning - https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=7508798
+IntelliLight: A Reinnforcement Learning Approach for Intelligent Traffic Light Control - https://www.researchgate.net/publication/326504263_IntelliLight_A_Reinforcement_Learning_Approach_for_Intelligent_Traffic_Light_Control
+Self-organizing Traffic Lights: A Realistic Simulation - https://arxiv.org/pdf/nlin/0610040.pdf
+Dynamic Allocation of Traffic Light Plans as a Traffic Reduction Strategy - https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=8643139
+
+Infolinks:
+https://en.wikipedia.org/wiki/Traffic_light_control_and_coordination
+http://midimagic.sgc-hosting.com/progreso.htm
+https://www.youtube.com/watch?v=b-9vBtwrBwM (basic info on how traffic lights work and state of the art)
+https://etrr.springeropen.com/articles/10.1186/s12544-020-00439-1 (Very comprehensive article about state of the art)
+
+Research Questions:
+- Applicability of state of the art Deep Learning Approaches for smart traffic lights in complex traffic light grids
+- 
