@@ -121,11 +121,10 @@ class Simulation:
         traci.close()
         simulation_time = round(timeit.default_timer() - start_time, 1)
 
-        print("Training...")
         start_time = timeit.default_timer()
-
-        for _ in range(self._training_epochs):
-            for tl_name in self.tl_names:
+        for tl_name in self.tl_names:
+            print("Training", tl_name, "...")
+            for _ in range(self._training_epochs):
                 self._replay(tl_name)
         training_time = round(timeit.default_timer() - start_time, 1)
 
@@ -143,9 +142,9 @@ class Simulation:
             traci.simulationStep()  # simulate 1 step in sumo
             self._step += 1 # update the step counter
             steps_todo -= 1
-            queue_length = self._get_queue_length()
-            self._sum_queue_length += queue_length
-            self._sum_waiting_time += queue_length # 1 step while wating in queue means 1 second waited, for each car, therefore queue_lenght == waited_seconds
+            #Add queue lengths for each step
+            self._add_queue_lengths()
+           # 1 step while wating in queue means 1 second waited, for each car, therefore queue_lenght == waited_seconds
 
 
     def _collect_waiting_times(self,tl_names):
@@ -199,14 +198,17 @@ class Simulation:
             traci.trafficlight.setPhase(tl_name, PHASE_EW_GREEN)
 
 
-    def _get_queue_length(self):
+    def _add_queue_lengths(self):
         """
         Retrieve the number of cars with speed = 0 in every incoming lane
         """
-        halt_counts=[]
-        for e in self.edges_in:
-            halt_counts.append(traci.edge.getLastStepHaltingNumber(e))
-        return sum(halt_counts)
+        for tl_name in self.tl_names:
+            halt_counts=[]
+            for e in self.edges_in[tl_name]:
+                halt_counts.append(traci.edge.getLastStepHaltingNumber(e))
+            self._sum_queue_length[tl_name]=self._sum_queue_length[tl_name]+sum(halt_counts)
+            self._sum_waiting_time[tl_name]=self._sum_waiting_time[tl_name]+sum(halt_counts)
+
 
 
     def _get_state(self,tl_names):
@@ -280,8 +282,8 @@ class Simulation:
             next_states = np.array([val[3] for val in batch])  # extract next states from the batch
 
             # prediction
-            q_s_a = self._memory_dict[tl_name].predict_batch(states)  # predict Q(state), for every sample
-            q_s_a_d = self._memory_dict[tl_name].predict_batch(next_states)  # predict Q(next_state), for every sample
+            q_s_a = self._model_dict[tl_name].predict_batch(states)  # predict Q(state), for every sample
+            q_s_a_d = self._model_dict[tl_name].predict_batch(next_states)  # predict Q(next_state), for every sample
 
             # setup training arrays
             x = np.zeros((len(batch), self._num_states))
@@ -294,7 +296,7 @@ class Simulation:
                 x[i] = state
                 y[i] = current_q  # Q(state) that includes the updated action value
 
-            self._memory_dict[tl_name].train_batch(x, y)  # train the NN
+            self._model_dict[tl_name].train_batch(x, y)  # train the NN
 
 
     def _save_episode_stats(self):
