@@ -2,15 +2,26 @@ import traci
 import numpy as np
 import random
 import timeit
+from multiprocessing.pool import ThreadPool as Pool
 import os
 
 # phase codes based on environment.net.xml
 PHASE_NS_GREEN = 0
 PHASE_NS_YELLOW = 1
-PHASE_EW_GREEN = 2
-PHASE_EW_YELLOW = 3
+PHASE_NSL_GREEN = 2
+PHASE_NSL_YELLOW = 3
+PHASE_EW_GREEN = 4
+PHASE_EW_YELLOW = 5
+PHASE_EWL_GREEN = 6
+PHASE_EWL_YELLOW = 7
+
+pool_size=5
+
+# define worker function before a Pool is instantiated
+
 
 class Simulation:
+
     def __init__(self, model_dict, memory_dict, TrafficGen, sumo_cmd, gamma, max_steps, green_duration, yellow_duration, num_states, num_actions, training_epochs,tl_names,edges_in,edges_out):
         self._model_dict = model_dict
         self._memory_dict = memory_dict
@@ -38,6 +49,12 @@ class Simulation:
             self._avg_queue_length_store[tl_name] = []
         self._training_epochs = training_epochs
 
+    #worker function for parallelized training phase
+    def worker(self,tl_name):
+        try:
+            self._replay(tl_name)
+        except:
+            print('error with replay for',tl_name)
 
     def run(self, episode, epsilon):
         """
@@ -68,9 +85,8 @@ class Simulation:
             old_state[tl_name]=-1
             old_action[tl_name]=-1
 
+        #TODO: Change simulation execution so that each traffic light can make decisions independently (currently all decide simultaneously
         while self._step < self._max_steps:
-
-
             # get current state of the intersection
             current_states = self._get_state(self.tl_names)
 
@@ -122,12 +138,15 @@ class Simulation:
         simulation_time = round(timeit.default_timer() - start_time, 1)
 
         start_time = timeit.default_timer()
+        pool = Pool(pool_size)
         for tl_name in self.tl_names:
             print("Training", tl_name, "...")
             for _ in range(self._training_epochs):
-                self._replay(tl_name)
+                #self._replay(tl_name)
+                pool.apply_async(self.worker, (tl_name,))
+        pool.close()
+        pool.join()
         training_time = round(timeit.default_timer() - start_time, 1)
-
         return simulation_time, training_time
 
 
@@ -195,7 +214,11 @@ class Simulation:
         if action_number == 0:
             traci.trafficlight.setPhase(tl_name, PHASE_NS_GREEN)
         elif action_number == 1:
+            traci.trafficlight.setPhase(tl_name, PHASE_NSL_GREEN)
+        elif action_number == 2:
             traci.trafficlight.setPhase(tl_name, PHASE_EW_GREEN)
+        elif action_number == 3:
+            traci.trafficlight.setPhase(tl_name, PHASE_EWL_GREEN)
 
 
     def _add_queue_lengths(self):
