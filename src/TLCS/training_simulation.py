@@ -4,6 +4,7 @@ import random
 import timeit
 from multiprocessing.pool import ThreadPool as Pool
 import os
+import tensorflow as tf
 
 # phase codes based on environment.net.xml
 PHASE_NS_GREEN = 0
@@ -76,6 +77,11 @@ class Simulation:
         old_total_wait =  {}
         old_state =  {}
         old_action =  {}
+        next_action = {}
+        yellowFlag = {}
+        rewards = {}
+        actions = {}
+        current_states={}
         for tl_name in self.tl_names:
             self._waiting_times[tl_name]={}
             self._sum_neg_reward[tl_name]=0
@@ -84,52 +90,68 @@ class Simulation:
             old_total_wait[tl_name]=0
             old_state[tl_name]=-1
             old_action[tl_name]=-1
+            actions[tl_name]=-1
+            next_action[tl_name]=0
+            rewards[tl_name]=0
+            yellowFlag[tl_name]=False
+            # get current state of the intersection
+            current_states[tl_name] = self._get_state(tl_name)
 
         #TODO: Change simulation execution so that each traffic light can make decisions independently (currently all decide simultaneously
         while self._step < self._max_steps:
-            # get current state of the intersection
-            current_states = self._get_state(self.tl_names)
 
             # calculate reward of previous action: (change in cumulative waiting time between actions)
             # waiting time = seconds waited by a car since the spawn in the environment, cumulated for every car in incoming lanes
             current_total_wait = self._collect_waiting_times(self.tl_names)
-            rewards={}
-            actions={}
-            yellowFlag = False
 
             for tl_name in self.tl_names:
-                rewards[tl_name] = old_total_wait[tl_name] - current_total_wait[tl_name]
 
-                # saving the data into the memory
-                if self._step != 0:
-                    self._memory_dict[tl_name].add_sample((old_state[tl_name], old_action[tl_name], rewards[tl_name], current_states[tl_name]))
-
-                # choose the light phase to activate, based on the current state of the intersection
-                actions[tl_name] = self._choose_action(tl_name,current_states[tl_name], epsilon)
-
-                if self._step != 0 and old_action[tl_name] != actions[tl_name]:
-                    yellowFlag=True
-                    self._set_yellow_phase(tl_name,old_action[tl_name])
+                if((next_action[tl_name]==0) & (yellowFlag[tl_name]==True)):
+                    #print("TL",tl_name,"entering yellow phase action")
+                    yellowFlag[tl_name]=False
+                    self._set_green_phase(tl_name,actions[tl_name])
+                    next_action[tl_name]= self._green_duration
+                elif(next_action[tl_name]==0):
+                    #print("TL", tl_name, "entering green phase action")
 
 
-            # if the chosen phase is different from the last phase, activate the yellow phase
+                    # get current state of the intersection
+                    current_states[tl_name] = self._get_state(tl_name)
 
-            if yellowFlag:
-                self._simulate(self._yellow_duration)
+                    rewards[tl_name] = old_total_wait[tl_name] - current_total_wait[tl_name]
 
-            for tl_name in self.tl_names:
-                self._set_green_phase(tl_name,actions[tl_name])
+                    # saving only the meaningful reward to better see if the agent is behaving correctly
+                    if rewards[tl_name] < 0:
+                        self._sum_neg_reward[tl_name] += rewards[tl_name]
 
-            self._simulate(self._green_duration)
 
-            # saving variables for later & accumulate reward
-            for tl_name in self.tl_names:
-                old_state[tl_name] = current_states[tl_name]
-                old_action[tl_name] = actions[tl_name]
-                old_total_wait[tl_name] = current_total_wait[tl_name]
-                # saving only the meaningful reward to better see if the agent is behaving correctly
-                if rewards[tl_name] < 0:
-                    self._sum_neg_reward[tl_name] += rewards[tl_name]
+                    # saving the data into the memory
+                    if self._step != 0:
+                        self._memory_dict[tl_name].add_sample((old_state[tl_name], old_action[tl_name], rewards[tl_name], current_states[tl_name]))
+
+                    # choose the light phase to activate, based on the current state of the intersection
+                    actions[tl_name] = self._choose_action(tl_name,current_states[tl_name], epsilon)
+
+                    if self._step != 0 and old_action[tl_name] != actions[tl_name]:
+                        #Set traffic light to yellow
+                        self._set_yellow_phase(tl_name,old_action[tl_name])
+                        #wait for yellow period to end before executing action
+                        next_action[tl_name] = self._yellow_duration
+                        yellowFlag[tl_name] = True
+                    else:
+                        next_action[tl_name]= self._green_duration
+
+                    # saving variables for later & accumulate reward
+                    old_state[tl_name] = current_states[tl_name]
+                    old_action[tl_name] = actions[tl_name]
+                    old_total_wait[tl_name] = current_total_wait[tl_name]
+
+                else:
+                    #print("TL",tl_name," no step!")
+                    next_action[tl_name]=next_action[tl_name]-1
+            #Each iteration is one simulationstep
+            #print("-----------------")
+            self._simulate()
 
         self._save_episode_stats()
         for tl_name in self.tl_names:
@@ -141,29 +163,26 @@ class Simulation:
         pool = Pool(pool_size)
         for tl_name in self.tl_names:
             print("Training", tl_name, "...")
-            for _ in range(self._training_epochs):
-                #self._replay(tl_name)
-                pool.apply_async(self.worker, (tl_name,))
+
+        print("Training traffic lights")
+        for _ in range(self._training_epochs):
+            #self._replay()
+            pool.apply_async(self.worker, (tl_name,))
         pool.close()
         pool.join()
         training_time = round(timeit.default_timer() - start_time, 1)
         return simulation_time, training_time
 
 
-    def _simulate(self,steps_todo):
+    def _simulate(self):
         """
         Execute steps in sumo while gathering statistics
         """
-        if (self._step + steps_todo) >= self._max_steps:  # do not do more steps than the maximum allowed number of steps
-            steps_todo = self._max_steps - self._step
-
-        while steps_todo > 0:
-            traci.simulationStep()  # simulate 1 step in sumo
-            self._step += 1 # update the step counter
-            steps_todo -= 1
-            #Add queue lengths for each step
-            self._add_queue_lengths()
-           # 1 step while wating in queue means 1 second waited, for each car, therefore queue_lenght == waited_seconds
+        traci.simulationStep()  # simulate 1 step in sumo
+        self._step += 1 # update the step counter
+        #Add queue lengths for each step
+        self._add_queue_lengths()
+       # 1 step while wating in queue means 1 second waited, for each car, therefore queue_lenght == waited_seconds
 
 
     def _collect_waiting_times(self,tl_names):
@@ -234,70 +253,77 @@ class Simulation:
 
 
 
-    def _get_state(self,tl_names):
+    def _get_state(self,tl_name):
         """
         Retrieve the state of the intersection from sumo, in the form of cell occupancy
         """
-        states={}
-        for tl_name in tl_names:
-            state = np.zeros(self._num_states)
-            car_list = traci.vehicle.getIDList()
+        state = np.zeros(self._num_states)
+        car_list = traci.vehicle.getIDList()
 
-            for car_id in car_list:
-                lane_pos = traci.vehicle.getLanePosition(car_id)
-                lane_id = traci.vehicle.getLaneID(car_id)
-                lane_pos = 400 - lane_pos  # inversion of lane pos, so if the car is close to the traffic light -> lane_pos = 0 --- 750 = max len of a road
+        for car_id in car_list:
+            lane_pos = traci.vehicle.getLanePosition(car_id)
+            lane_id = traci.vehicle.getLaneID(car_id)
 
-                if (lane_id in self.edges_in[tl_name]):
+            #split lane info into edge id and lane id (e.g. TLC2TLS_1 is the middle lane of TLC2TLS; '_2' is left turn only lane
+            lane_info=lane_id.split("_")
+            lane_pos = 650 - lane_pos  # inversion of lane pos, so if the car is close to the traffic light -> lane_pos = 0 --- 650 = max len of a road
 
-                    # set lanegroup by using position of lane in the respective list
+            if (lane_info[0] in self.edges_in[tl_name]):
 
-                    lane_group = self.edges_in[tl_name].index(lane_id)
+                # set lanegroup by using position of lane in the respective list
+                lane_index = self.edges_in[tl_name].index(lane_info[0])
 
-                    # distance in meters from the traffic light -> mapping into cells
-                    if lane_pos < 7:
-                        lane_cell = 0
-                    elif lane_pos < 14:
-                        lane_cell = 1
-                    elif lane_pos < 21:
-                        lane_cell = 2
-                    elif lane_pos < 28:
-                        lane_cell = 3
-                    elif lane_pos < 40:
-                        lane_cell = 4
-                    elif lane_pos < 60:
-                        lane_cell = 5
-                    elif lane_pos < 100:
-                        lane_cell = 6
-                    elif lane_pos < 160:
-                        lane_cell = 7
-                    elif lane_pos <= 400:
-                        lane_cell = 8
-
-                    # finding the lane where the car is located
-                    # x2TL_3 are the "turn left only" lanes
-
+                # distance in meters from the traffic light -> mapping into cells
+                if lane_pos < 7:
+                    lane_cell = 0
+                elif lane_pos < 14:
+                    lane_cell = 1
+                elif lane_pos < 21:
+                    lane_cell = 2
+                elif lane_pos < 28:
+                    lane_cell = 3
+                elif lane_pos < 40:
+                    lane_cell = 4
+                elif lane_pos < 60:
+                    lane_cell = 5
+                elif lane_pos < 100:
+                    lane_cell = 6
+                elif lane_pos < 160:
+                    lane_cell = 7
+                elif lane_pos <= 400:
+                    lane_cell = 8
+                elif lane_pos <= 650:
+                    lane_cell = 9
 
 
-                    if lane_group >= 1 and lane_group <= 7:
-                        car_position = int(str(lane_group) + str(lane_cell))  # composition of the two postion ID to create a number in interval 0-39
-                        valid_car = True
-                    elif lane_group == 0:
-                        car_position = lane_cell
-                        valid_car = True
-                    else:
-                        valid_car = False  # flag for not detecting cars crossing the intersection or driving away from it
+                # finding the lane where the car is located
+                # x2x_2 are the "turn left only" lanes
+                if(lane_info[1]=='2'):
+                    lane_group=lane_index*2+1
+                else:
+                    lane_group=lane_index*2
 
-                    if valid_car:
-                        state[car_position] = 1  # write the position of the car car_id in the state array in the form of "cell occupied"
-            states[tl_name]=state
-        return states
+
+                if lane_group >= 1 and lane_group <= 7:
+                    car_position = int(str(lane_group) + str(lane_cell))  # composition of the two postion ID to create a number in interval 0-79
+                    valid_car = True
+                elif lane_group == 0:
+                    car_position = lane_cell
+                    valid_car = True
+                else:
+                    valid_car = False  # flag for not detecting cars crossing the intersection or driving away from it
+
+                if valid_car:
+                    state[car_position] = 1  # write the position of the car car_id in the state array in the form of "cell occupied"
+
+        return state
 
 
     def _replay(self,tl_name):
         """
         Retrieve a group of samples from the memory and for each of them update the learning equation, then train
         """
+        #for tl_name in self.tl_names:
         batch = self._memory_dict[tl_name].get_samples(self._model_dict[tl_name].batch_size)
 
         if len(batch) > 0:  # if the memory is full enough
