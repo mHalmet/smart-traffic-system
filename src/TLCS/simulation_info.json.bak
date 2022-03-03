@@ -1,0 +1,38 @@
+{
+	"single":
+	{
+		"sumocfg_file_name" : "sumo_config_single.sumocfg",
+		"tl_names" : ["TLC"],
+		"edges_in" :
+			{
+				"TLC":["N2TLC","E2TLC","S2TLC","W2TLC"]
+			},
+		"edges_out":
+			{
+				"TLC":["TLC2N","TLC2E","TLC2S","TLC2W"]
+			}
+	},
+	"full" :
+	{
+		"sumocfg_file_name" : "sumo_config.sumocfg",
+		"tl_names" :["TLC","TLN","TLE","TLS","TLW"],
+		"edges_in" :
+			{
+				"TLC":["TLN2TLC","TLE2TLC","TLS2TLC","TLW2TLC"],
+				"TLN":["N2TLN", "E2TLN", "TLC2TLN", "W2TLN"], 
+				"TLE":["N2TLE", "E2TLE", "S2TLE", "TLC2TLE"],
+				"TLS":["TLC2TLS", "E2TLS", "S2TLS", "W2TLS"],
+				"TLW":["N2TLW", "TLC2TLW", "S2TLW", "W2TLW"]
+			},
+		"edges_out":
+			{
+				"TLC":["TLC2TLN", "TLC2TLE", "TLC2TLS", "TLC2TLW"],
+				"TLN":["TLN2N", "TLN2E", "TLN2TLC", "TLN2TLW"],
+				"TLE":["TLE2N","TLE2E","TLE2S","TLE2TLC"],
+				"TLS":["TLS2TLC", "TLS2E", "TLS2S", "TLS2W"],
+				"TLW":["TLW2N", "TLW2TLC", "TLW2S", "TLW2W"]
+
+			}
+
+	}
+}

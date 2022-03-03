@@ -18,11 +18,12 @@ if __name__ == "__main__":
     config = import_train_configuration(config_file='training_settings.ini')
     sumo_cmd = set_sumo(config['gui'], config['sumocfg_file_name'], config['max_steps'])
     path = set_train_path(config['models_path_name'])
-    tl_names=["TLC",'TLN','TLE','TLS','TLW']
 
+    print(config['tl_names'])
+    print(config['edges_in'])
     model_dict={}
     memory_dict = {}
-    for tl_name in tl_names:
+    for tl_name in config['tl_names']:
         memory_dict[tl_name]= Memory(
             config['memory_size_max'],
             config['memory_size_min']
@@ -38,7 +39,8 @@ if __name__ == "__main__":
 
     trafficGen = TrafficGenerator(
         config['max_steps'], 
-        config['n_cars_generated']
+        config['n_cars_generated'],
+        config['simulation_mode']
     )
 
     visualization = Visualization(
@@ -58,12 +60,10 @@ if __name__ == "__main__":
         config['num_states'],
         config['num_actions'],
         config['training_epochs'],
-        tl_names, # trafficlight names
-        # inbound edges
-        {"TLC":['TLN2TLC','TLE2TLC','TLS2TLC','TLW2TLC'],"TLN":['N2TLN', 'E2TLN', 'TLC2TLN', 'W2TLN'] ,"TLE":['N2TLE', 'E2TLE', 'S2TLE', 'TLC2TLE'],"TLS":['TLC2TLS', 'E2TLS', 'S2TLS', 'W2TLS'],"TLW":['N2TLW', 'TLC2TLW', 'S2TLW', 'W2TLW']},
-        # outbound edges
-        {"TLC":['TLC2TLN', 'TLC2TLE', 'TLC2TLS', 'TLC2TLW'],"TLN":['TLN2N', 'TLN2E', 'TLN2TLC', 'TLN2TLW'],"TLE":['TLE2N','TLE2E','TLE2S','TLE2TLC'] ,"TLS:":['TLS2TLC', 'TLS2E', 'TLS2S', 'TLS2W'],"TLW":['TLW2N', 'TLW2TLC', 'TLW2S', 'TLW2W']}
-    )
+        config['tl_names'],
+        config['edges_in'],
+        config['edges_out']
+     )
 
     episode = 0
     timestamp_start = datetime.datetime.now()
@@ -79,12 +79,12 @@ if __name__ == "__main__":
     print("----- End time:", datetime.datetime.now())
     print("----- Session info saved at:", path)
 
-    for tl_name in tl_names:
+    for tl_name in config['tl_names']:
         full_path=path+"_"+tl_name
         model_dict[tl_name].save_model(full_path)
 
     copyfile(src='training_settings.ini', dst=os.path.join(path, 'training_settings.ini'))
 
-    visualization.save_data_and_plot(data=simulation.reward_store, filename='reward', xlabel='Episode', ylabel='Cumulative negative reward',tl_names=tl_names)
-    visualization.save_data_and_plot(data=simulation.cumulative_wait_store, filename='delay', xlabel='Episode', ylabel='Cumulative delay (s)',tl_names=tl_names)
-    visualization.save_data_and_plot(data=simulation.avg_queue_length_store, filename='queue', xlabel='Episode', ylabel='Average queue length (vehicles)',tl_names=tl_names)
+    visualization.save_data_and_plot(data=simulation.reward_store, filename='reward', xlabel='Episode', ylabel='Cumulative negative reward',tl_names=config['tl_names'])
+    visualization.save_data_and_plot(data=simulation.cumulative_wait_store, filename='delay', xlabel='Episode', ylabel='Cumulative delay (s)',tl_names=config['tl_names'])
+    visualization.save_data_and_plot(data=simulation.avg_queue_length_store, filename='queue', xlabel='Episode', ylabel='Average queue length (vehicles)',tl_names=config['tl_names'])

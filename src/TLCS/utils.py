@@ -1,4 +1,5 @@
 import configparser
+import json
 from sumolib import checkBinary
 import os
 import sys
@@ -10,7 +11,12 @@ def import_train_configuration(config_file):
     """
     content = configparser.ConfigParser()
     content.read(config_file)
+
+    f = open('simulation_info.json')
+    sim_info = json.load(f)
+
     config = {}
+    config['simulation_mode'] = content['simulation']['simulation_mode']
     config['gui'] = content['simulation'].getboolean('gui')
     config['total_episodes'] = content['simulation'].getint('total_episodes')
     config['max_steps'] = content['simulation'].getint('max_steps')
@@ -28,7 +34,12 @@ def import_train_configuration(config_file):
     config['num_actions'] = content['agent'].getint('num_actions')
     config['gamma'] = content['agent'].getfloat('gamma')
     config['models_path_name'] = content['dir']['models_path_name']
-    config['sumocfg_file_name'] = content['dir']['sumocfg_file_name']
+    config['sumocfg_file_name'] = sim_info[config['simulation_mode']]['sumocfg_file_name']
+
+    config['tl_names'] = sim_info[config['simulation_mode']]['tl_names']
+    config['edges_in'] = sim_info[config['simulation_mode']]['edges_in']
+    config['edges_out'] = sim_info[config['simulation_mode']]['edges_out']
+
     return config
 
 
@@ -38,7 +49,13 @@ def import_test_configuration(config_file):
     """
     content = configparser.ConfigParser()
     content.read(config_file)
+
+    f = open('simulation_info.json')
+    sim_info = json.load(f)
+
+
     config = {}
+    config['simulation_mode']=content['simulation']['simulation_mode']
     config['gui'] = content['simulation'].getboolean('gui')
     config['max_steps'] = content['simulation'].getint('max_steps')
     config['n_cars_generated'] = content['simulation'].getint('n_cars_generated')
@@ -47,9 +64,13 @@ def import_test_configuration(config_file):
     config['yellow_duration'] = content['simulation'].getint('yellow_duration')
     config['num_states'] = content['agent'].getint('num_states')
     config['num_actions'] = content['agent'].getint('num_actions')
-    config['sumocfg_file_name'] = content['dir']['sumocfg_file_name']
+    config['sumocfg_file_name'] = sim_info[config['simulation_mode']]['sumocfg_file_name']
     config['models_path_name'] = content['dir']['models_path_name']
-    config['model_to_test'] = content['dir'].getint('model_to_test') 
+    config['model_to_test'] = content['dir'].getint('model_to_test')
+
+    config['tl_names'] = sim_info[config['simulation_mode']]['tl_names']
+    config['edges_in'] = sim_info[config['simulation_mode']]['edges_in']
+    config['edges_out'] = sim_info[config['simulation_mode']]['edges_out']
     return config
 
 
