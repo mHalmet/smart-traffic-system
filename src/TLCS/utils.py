@@ -35,10 +35,16 @@ def import_train_configuration(config_file):
     config['gamma'] = content['agent'].getfloat('gamma')
     config['models_path_name'] = content['dir']['models_path_name']
     config['sumocfg_file_name'] = sim_info[config['simulation_mode']]['sumocfg_file_name']
+    config['model_type'] = content['model']['model_type']
 
     config['tl_names'] = sim_info[config['simulation_mode']]['tl_names']
     config['edges_in'] = sim_info[config['simulation_mode']]['edges_in']
     config['edges_out'] = sim_info[config['simulation_mode']]['edges_out']
+    config['edge_dict'] = sim_info[config['simulation_mode']]['edge_dict']
+    config['start_points'] = sim_info[config['simulation_mode']]['start_points']
+    config['end_points'] = sim_info[config['simulation_mode']]['end_points']
+    config['adjacent_tls'] = sim_info[config['simulation_mode']]['adjacent_tls']
+
 
     return config
 

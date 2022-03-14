@@ -1,4 +1,5 @@
 {
+	"//IMPORTANT COMMMENT: edges_dict always needs to have following order of direction 'point:[left_turn,straight,right_turn]' for pathgeneration to work properly":"",
 	"single":
 	{
 		"sumocfg_file_name" : "sumo_config_single.sumocfg",
@@ -10,12 +11,26 @@
 		"edges_out":
 			{
 				"TLC":["TLC2N","TLC2E","TLC2S","TLC2W"]
-			}
+			},
+		"edge_dict":
+			{
+            "N2TLC": ["TLC2E", "TLC2S", "TLC2W"],
+            "S2TLC": ["TLC2W", "TLC2N", "TLC2E"],
+            "W2TLC": ["TLC2N", "TLC2E", "TLC2S"],
+            "E2TLC": ["TLC2S", "TLC2W", "TLC2N"]
+			},
+		"start_points": ["N2TLC","W2TLC","S2TLC","E2TLC"],
+		"end_points" : ["TLC2N","TLC2W","TLC2S","TLC2E"]
 	},
 	"double":
 	{
 		"sumocfg_file_name" : "sumo_config_double.sumocfg",
 		"tl_names" : ["TLW","TLE"],
+		"adjacent_tls":
+			{
+				"TLW": ["TLE"],
+				"TLE": ["TLW"]
+			},
 		"edges_in" :
 			{
 				"TLW":["N2TLW","TLE2TLW","S2TLW","W2TLW"],
@@ -25,12 +40,31 @@
 			{
 				"TLW":["TLW2N","TLW2TLE","TLW2S","TLW2W"],
 				"TLE":["TLE2N","TLE2E","TLE2S","TLE2TLW"]
-			}
+			},
+		"edge_dict": {
+            "N2TLW": ["TLW2TLE", "TLW2S", "TLW2W"],
+            "S2TLW": ["TLW2W", "TLW2N", "TLW2TLE"],
+            "W2TLW": ["TLW2N", "TLW2TLE", "TLW2S"],
+            "TLE2TLW": ["TLW2S", "TLW2W", "TLW2N"],
+            "TLW2TLE": ["TLE2N", "TLE2E", "TLE2S"],
+
+            "N2TLE": ["TLE2E", "TLE2S", "TLE2TLW"],
+            "E2TLE": ["TLE2S", "TLE2TLW", "TLE2N"],
+            "S2TLE": ["TLE2TLW", "TLE2N", "TLE2E"]},
+
+		"start_points": ["N2TLW","W2TLW","S2TLW","N2TLE","E2TLE","S2TLE"],
+		"end_points" : ["TLW2N","TLW2W","TLW2S","TLE2N","TLE2E","TLE2S"]
 	},
-	"tripple":
+	"triple":
 	{
-		"sumocfg_file_name" : "sumo_config_double.sumocfg",
+		"sumocfg_file_name" : "sumo_config_triple.sumocfg",
 		"tl_names" : ["TLC","TLW","TLE"],
+		"adjacent_tls":
+			{
+				"TLC": ["TLE","TLW"],
+				"TLE": ["TLC"],
+				"TLW": ["TLC"]
+			},
 		"edges_in" :
 			{
 				"TLC": ["N2TLC","S2TLC","TLW2TLC","TLE2TLC"],
@@ -42,12 +76,38 @@
 				"TLC": ["TLC2N","TLC2S","TLC2TLW","TLC2TLE"],
 				"TLW":["TLW2N","TLW2TLC","TLW2S","TLW2W"],
 				"TLE":["TLE2N","TLE2E","TLE2S","TLE2TLC"]
-			}
+			},
+		"edge_dict" : {
+            "N2TLW": ["TLW2TLC", "TLW2S", "TLW2W"],
+            "S2TLW": ["TLW2W", "TLW2N", "TLW2TLC"],
+            "W2TLW": ["TLW2N", "TLW2TLC", "TLW2S"],
+            "TLC2TLW": ["TLW2S", "TLW2W", "TLW2N"],
+
+            "TLW2TLC": ["TLC2N", "TLC2TLE", "TLC2S"],
+            "TLE2TLC": ["TLC2S", "TLC2TLW", "TLC2N"],
+            "N2TLC": ["TLC2TLE", "TLC2S", "TLC2TLW"],
+            "S2TLC": ["TLC2TLW", "TLC2N", "TLC2TLE"],
+
+            "N2TLE": ["TLE2E", "TLE2S", "TLE2TLC"],
+            "S2TLE": ["TLE2TLC", "TLE2N", "TLE2E"],
+            "E2TLE": ["TLE2S", "TLE2TLC", "TLE2N"],
+            "TLC2TLE": ["TLE2N", "TLE2E", "TLE2S"]
+            },
+        "start_points" : ["N2TLW","W2TLW","S2TLW","N2TLE","E2TLE","S2TLE","N2TLC","S2TLC"],
+		"end_points" : ["TLW2N","TLW2W","TLW2S","TLE2N","TLE2E","TLE2S","TLC2N","TLC2S"]
 	},
 	"full" :
 	{
 		"sumocfg_file_name" : "sumo_config.sumocfg",
 		"tl_names" :["TLC","TLN","TLE","TLS","TLW"],
+		"adjacent_tls":
+			{
+				"TLC": ["TLN","TLE","TLS","TLW"],
+				"TLN": ["TLC"],
+				"TLE": ["TLC"],
+				"TLS": ["TLC"],
+				"TLW": ["TLC"]
+			},
 		"edges_in" :
 			{
 				"TLC":["TLN2TLC","TLE2TLC","TLS2TLC","TLW2TLC"],
@@ -59,12 +119,41 @@
 		"edges_out":
 			{
 				"TLC":["TLC2TLN", "TLC2TLE", "TLC2TLS", "TLC2TLW"],
-				"TLN":["TLN2N", "TLN2E", "TLN2TLC", "TLN2TLW"],
+				"TLN":["TLN2N", "TLN2E", "TLN2TLC", "TLN2W"],
 				"TLE":["TLE2N","TLE2E","TLE2S","TLE2TLC"],
 				"TLS":["TLS2TLC", "TLS2E", "TLS2S", "TLS2W"],
 				"TLW":["TLW2N", "TLW2TLC", "TLW2S", "TLW2W"]
 
-			}
+			},
+		"edge_dict" : {
+            "N2TLN": ["TLN2E", "TLN2TLC", "TLN2W"],
+            "E2TLN": ["TLN2TLC", "TLN2W", "TLN2N"],
+            "TLC2TLN": ["TLN2W", "TLN2N", "TLN2E"],
+            "W2TLN": ["TLN2N", "TLN2E", "TLN2TLC"],
+            "TLN2TLC": ["TLC2TLE", "TLC2TLS", "TLC2TLW"],
+
+            "E2TLE": ["TLE2S", "TLE2TLC", "TLE2N"],
+            "N2TLE": ["TLE2E", "TLE2S", "TLE2TLC"],
+            "TLC2TLE": ["TLE2N", "TLE2E", "TLE2S"],
+            "S2TLE": ["TLE2TLC", "TLE2N", "TLE2E"],
+            "TLE2TLC": ["TLC2TLN", "TLC2TLW", "TLC2TLS"],
+
+            "W2TLW": ["TLW2N", "TLW2TLC", "TLW2S"],
+            "N2TLW": ["TLW2TLC", "TLW2S", "TLW2W"],
+            "TLC2TLW": ["TLW2S", "TLW2W", "TLW2N"],
+            "S2TLW": ["TLW2W", "TLW2N", "TLW2TLC"],
+            "TLW2TLC": ["TLC2TLN", "TLC2TLE", "TLC2TLS"],
+
+            "S2TLS": ["TLS2W", "TLS2TLC", "TLS2E"],
+            "E2TLS": ["TLS2S", "TLS2W", "TLS2TLC"],
+            "TLC2TLS": ["TLS2E", "TLS2S", "TLS2W"],
+            "W2TLS": ["TLS2TLC", "TLS2E", "TLS2S"],
+            "TLS2TLC": ["TLC2TLW", "TLC2TLN", "TLC2TLE"]},
+
+        "start_points" : ["N2TLN", "E2TLN", "W2TLN", "E2TLE", "N2TLE", "S2TLE", "W2TLW", "N2TLW", "S2TLW", "S2TLS",
+                           "E2TLS", "W2TLS"],
+		"end_points" : ["TLN2N", "TLN2E", "TLN2W", "TLE2E", "TLE2N", "TLE2S", "TLW2W", "TLW2N", "TLW2S", "TLS2S",
+                           "TLS2E", "TLS2W"]
 
 	}
 }
