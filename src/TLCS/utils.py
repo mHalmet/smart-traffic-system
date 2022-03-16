@@ -28,6 +28,7 @@ def import_train_configuration(config_file):
     config['batch_size'] = content['model'].getint('batch_size')
     config['learning_rate'] = content['model'].getfloat('learning_rate')
     config['training_epochs'] = content['model'].getint('training_epochs')
+    config['sync'] = content['model']['sync']
     config['memory_size_min'] = content['memory'].getint('memory_size_min')
     config['memory_size_max'] = content['memory'].getint('memory_size_max')
     config['num_states'] = content['agent'].getint('num_states')
@@ -36,6 +37,8 @@ def import_train_configuration(config_file):
     config['models_path_name'] = content['dir']['models_path_name']
     config['sumocfg_file_name'] = sim_info[config['simulation_mode']]['sumocfg_file_name']
     config['model_type'] = content['model']['model_type']
+    config['reward_metric'] = content['model']['reward_metric']
+
 
     config['tl_names'] = sim_info[config['simulation_mode']]['tl_names']
     config['edges_in'] = sim_info[config['simulation_mode']]['edges_in']

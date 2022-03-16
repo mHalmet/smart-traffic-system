@@ -35,7 +35,7 @@ if __name__ == "__main__":
         if (config['model_type'] == "disjoint"):
             num_states = config['num_states']
         elif (config['model_type'] == "collaborative-simple"):
-            num_states = config['num_states'] + len((config['adjacent_tls'])[tl_name])
+            num_states = config['num_states'] + (len((config['adjacent_tls'])[tl_name])*2)
         elif (config['model_type'] == "collaborative-complex"):
             num_states = config['num_states'] * (len((config['adjacent_tls'])[tl_name])+1)
         elif (config['model_type'] == 'none'):
@@ -89,7 +89,9 @@ if __name__ == "__main__":
         config['edges_in'],
         config['edges_out'],
         config['model_type'],
-        config['adjacent_tls']
+        config['adjacent_tls'],
+        config['sync'],
+        config['reward_metric']
      )
 
     episode = 0

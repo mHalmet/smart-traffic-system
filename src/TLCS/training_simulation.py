@@ -7,6 +7,7 @@ import traceback
 import os
 import tensorflow as tf
 
+
 # phase codes based on environment.net.xml
 PHASE_NS_GREEN = 0
 PHASE_NS_YELLOW = 1
@@ -24,7 +25,7 @@ pool_size=5
 
 class Simulation:
 
-    def __init__(self, model_dict, memory_dict, TrafficGen, sumo_cmd, gamma, max_steps, green_duration, yellow_duration, num_states, num_actions, training_epochs,tl_names,edges_in,edges_out,model_type,adjacent_tls):
+    def __init__(self, model_dict, memory_dict, TrafficGen, sumo_cmd, gamma, max_steps, green_duration, yellow_duration, num_states, num_actions, training_epochs,tl_names,edges_in,edges_out,model_type,adjacent_tls,sync,reward_metric):
         self._model_dict = model_dict
         self._memory_dict = memory_dict
         self._TrafficGen = TrafficGen
@@ -34,6 +35,8 @@ class Simulation:
         self._max_steps = max_steps
         self._green_duration = green_duration
         self._yellow_duration = yellow_duration
+        self.sync = sync
+        self.reward_metric = reward_metric
 
         self._num_actions = num_actions
 
@@ -56,7 +59,7 @@ class Simulation:
             if (self.model_type == "disjoint"):
                 self._num_states[tl_name] = num_states
             elif (self.model_type == "collaborative-simple"):
-                self._num_states[tl_name] = num_states + len(adjacent_tls[tl_name])
+                self._num_states[tl_name] = num_states + (len(adjacent_tls[tl_name])*2)
             elif (self.model_type  == "collaborative-complex"):
                 self._num_states[tl_name] = num_states * (len(adjacent_tls[tl_name])+1)
             elif (self.model_type  =='none'):
@@ -79,10 +82,7 @@ class Simulation:
             print('error with replay for',tl_name)
             print(traceback.print_exc())
 
-    def run(self, episode, epsilon):
-        """
-        Runs an episode of simulation, then starts a training session
-        """
+    def run_async(self, episode,epsilon):
         start_time = timeit.default_timer()
 
         # first, generate the route file for this simulation and set up sumo
@@ -93,30 +93,30 @@ class Simulation:
         # inits
         self._step = 0
         self._waiting_times = {}
-        self._sum_neg_reward =  {}
-        self._sum_queue_length =  {}
-        self._sum_waiting_time =  {}
-        old_total_wait =  {}
-        old_state =  {}
-        old_action =  {}
+        self._sum_neg_reward = {}
+        self._sum_queue_length = {}
+        self._sum_waiting_time = {}
+        old_total_wait = {}
+        old_state = {}
+        old_action = {}
         next_action = {}
         yellowFlag = {}
         rewards = {}
         actions = {}
-        current_states={}
+        current_states = {}
         for tl_name in self.tl_names:
-            self._waiting_times[tl_name]={}
-            self._sum_neg_reward[tl_name]=0
+            self._waiting_times[tl_name] = {}
+            self._sum_neg_reward[tl_name] = 0
             self._sum_queue_length[tl_name] = 0
             self._sum_waiting_time[tl_name] = 0
-            old_total_wait[tl_name]=0
-            old_state[tl_name]=-1
-            old_action[tl_name]=-1
-            actions[tl_name]=-1
-            next_action[tl_name]=0
-            rewards[tl_name]=0
-            yellowFlag[tl_name]=False
-        #get_state needs all actions to be initiated before being called
+            old_total_wait[tl_name] = 0
+            old_state[tl_name] = -1
+            old_action[tl_name] = -1
+            actions[tl_name] = -1
+            next_action[tl_name] = 0
+            rewards[tl_name] = 0
+            yellowFlag[tl_name] = False
+        # get_state needs all actions to be initiated before being called
         for tl_name in self.tl_names:
             current_states[tl_name] = self._get_state(tl_name, actions)
 
@@ -126,18 +126,18 @@ class Simulation:
             # waiting time = seconds waited by a car since the spawn in the environment, cumulated for every car in incoming lanes
             for tl_name in self.tl_names:
 
-                if((next_action[tl_name]==0) & (yellowFlag[tl_name]==True)):
-                    #print("TL",tl_name,"entering yellow phase action")
-                    yellowFlag[tl_name]=False
-                    self._set_green_phase(tl_name,actions[tl_name])
-                    next_action[tl_name]= self._green_duration
+                if ((next_action[tl_name] == 0) & (yellowFlag[tl_name] == True)):
+                    # print("TL",tl_name,"entering yellow phase action")
+                    yellowFlag[tl_name] = False
+                    self._set_green_phase(tl_name, actions[tl_name])
+                    next_action[tl_name] = self._green_duration
 
-                elif(next_action[tl_name]==0):
+                elif (next_action[tl_name] == 0):
 
-                    current_total_wait = self._collect_waiting_times(tl_name)
+                    current_total_wait = self._collect_reward(tl_name)
 
                     # get current state of the intersection
-                    current_states[tl_name] = self._get_state(tl_name,old_action)
+                    current_states[tl_name] = self._get_state(tl_name, old_action)
 
                     rewards[tl_name] = old_total_wait[tl_name] - current_total_wait
 
@@ -147,20 +147,20 @@ class Simulation:
 
                     # saving the data into the memory
                     if self._step != 0:
-                        self._memory_dict[tl_name].add_sample((old_state[tl_name], old_action[tl_name], rewards[tl_name], current_states[tl_name]))
+                        self._memory_dict[tl_name].add_sample(
+                            (old_state[tl_name], old_action[tl_name], rewards[tl_name], current_states[tl_name]))
 
                     # choose the light phase to activate, based on the current state of the intersection
-                    actions[tl_name] = self._choose_action(tl_name,current_states[tl_name], epsilon)
+                    actions[tl_name] = self._choose_action(tl_name, current_states[tl_name], epsilon)
 
                     if self._step != 0 and old_action[tl_name] != actions[tl_name]:
-                        #Set traffic light to yellow
-                        self._set_yellow_phase(tl_name,old_action[tl_name])
-                        #wait for yellow period to end before executing action
+                        # Set traffic light to yellow
+                        self._set_yellow_phase(tl_name, old_action[tl_name])
+                        # wait for yellow period to end before executing action
                         next_action[tl_name] = self._yellow_duration
                         yellowFlag[tl_name] = True
                     else:
-                        next_action[tl_name]= self._green_duration
-
+                        next_action[tl_name] = self._green_duration
 
                     # saving variables for later & accumulate reward
                     old_state[tl_name] = current_states[tl_name]
@@ -168,14 +168,14 @@ class Simulation:
                     old_total_wait[tl_name] = current_total_wait
 
                 else:
-                    #print("TL",tl_name," no step!")
-                    next_action[tl_name]=next_action[tl_name]-1
-            #Each iteration is one simulationstep
+                    # print("TL",tl_name," no step!")
+                    next_action[tl_name] = next_action[tl_name] - 1
+            # Each iteration is one simulationstep
             self._simulate()
 
         self._save_episode_stats()
         for tl_name in self.tl_names:
-            print("Total reward for",tl_name,":", self._sum_neg_reward[tl_name], "- Epsilon:", round(epsilon, 2))
+            print("Total reward for", tl_name, ":", self._sum_neg_reward[tl_name], "- Epsilon:", round(epsilon, 2))
         traci.close()
         simulation_time = round(timeit.default_timer() - start_time, 1)
 
@@ -186,12 +186,119 @@ class Simulation:
 
         print("Training traffic lights")
         for _ in range(self._training_epochs):
-            #self._replay()
+            # self._replay()
             pool.apply_async(self.worker, (tl_name,))
         pool.close()
         pool.join()
         training_time = round(timeit.default_timer() - start_time, 1)
         return simulation_time, training_time
+
+
+    def run_sync(self,episode,epsilon):
+        start_time = timeit.default_timer()
+
+        # first, generate the route file for this simulation and set up sumo
+        self._TrafficGen.generate_routefile(seed=episode)
+        traci.start(self._sumo_cmd)
+        print("Simulating...")
+
+        # inits
+        self._step = 0
+        self._waiting_times = {}
+        self._sum_neg_reward = {}
+        self._sum_queue_length = {}
+        self._sum_waiting_time = {}
+        old_reward = {}
+        old_state = {}
+        old_action = {}
+        next_action = {}
+        yellowFlag = {}
+        rewards = {}
+        actions = {}
+        current_states = {}
+        current_reward={}
+        for tl_name in self.tl_names:
+            self._waiting_times[tl_name] = {}
+            self._sum_neg_reward[tl_name] = 0
+            self._sum_queue_length[tl_name] = 0
+            self._sum_waiting_time[tl_name] = 0
+            current_reward[tl_name]=0
+            old_reward[tl_name] = 0
+            old_state[tl_name] = -1
+            old_action[tl_name] = -1
+            actions[tl_name] = -1
+            next_action[tl_name] = 0
+            rewards[tl_name] = 0
+            yellowFlag[tl_name] = False
+        # get_state needs all actions to be initiated before being called
+        for tl_name in self.tl_names:
+            current_states[tl_name] = self._get_state(tl_name, actions)
+
+        while self._step < self._max_steps:
+            for tl_name in self.tl_names:
+                # get current state of the intersection
+                current_states[tl_name] = self._get_state(tl_name,old_action)
+
+                # calculate reward of previous action: (change in cumulative waiting time between actions)
+                # waiting time = seconds waited by a car since the spawn in the environment, cumulated for every car in incoming lanes
+                current_reward[tl_name] = self._collect_reward(tl_name)
+                rewards[tl_name] = old_reward[tl_name] - current_reward[tl_name]
+
+                # saving the data into the memory
+                if self._step != 0:
+                    self._memory_dict[tl_name].add_sample(
+                        (old_state[tl_name], old_action[tl_name], rewards[tl_name], current_states[tl_name]))
+                # choose the light phase to activate, based on the current state of the intersection
+                actions[tl_name] = self._choose_action(tl_name,current_states[tl_name], epsilon)
+
+                # if the chosen phase is different from the last phase, activate the yellow phase
+                if self._step != 0 and old_action[tl_name] != actions[tl_name]:
+                    yellowFlag[tl_name]=True
+                    self._set_yellow_phase(tl_name,old_action[tl_name])
+                else:
+                    yellowFlag[tl_name] = False
+
+            # execute the phase selected before
+            self._simulate_synced(self._yellow_duration,self._green_duration,actions,yellowFlag)
+
+            for tl_name in self.tl_names:
+                # saving variables for later & accumulate reward
+                old_state[tl_name] = current_states[tl_name]
+                old_action[tl_name] = actions[tl_name]
+                old_reward[tl_name] = current_reward[tl_name]
+
+                # saving only the meaningful reward to better see if the agent is behaving correctly
+                if rewards[tl_name] < 0:
+                    self._sum_neg_reward[tl_name] += rewards[tl_name]
+
+        self._save_episode_stats()
+        for tl_name in self.tl_names:
+            print("Total reward for", tl_name, ":", self._sum_neg_reward[tl_name], "- Epsilon:", round(epsilon, 2))
+        traci.close()
+        simulation_time = round(timeit.default_timer() - start_time, 1)
+
+        start_time = timeit.default_timer()
+        pool = Pool(pool_size)
+        for tl_name in self.tl_names:
+            print("Training", tl_name, "...")
+
+        print("Training traffic lights")
+        for _ in range(self._training_epochs):
+            # self._replay()
+            pool.apply_async(self.worker, (tl_name,))
+        pool.close()
+        pool.join()
+        training_time = round(timeit.default_timer() - start_time, 1)
+        return simulation_time, training_time
+
+    def run(self, episode, epsilon):
+        """
+        Runs an episode of simulation, then starts a training session
+        """
+        if(self.sync=="asynchronous"):
+            return self.run_async(episode,epsilon)
+        elif(self.sync=="synchronous"):
+            return self.run_sync(episode,epsilon)
 
 
     def _simulate(self):
@@ -204,28 +311,60 @@ class Simulation:
         self._add_queue_lengths()
        # 1 step while wating in queue means 1 second waited, for each car, therefore queue_lenght == waited_seconds
 
+    def _simulate_synced(self,yellow_phase,green_phase,actions,yellowFlag):
+        """
+        Execute steps in sumo while gathering statistics
+        """
+        steps_todo=yellow_phase+green_phase
+        if (self._step + steps_todo) >= self._max_steps:  # do not do more steps than the maximum allowed number of steps
+            steps_todo = self._max_steps - self._step
 
-    def _collect_waiting_times(self,tl_name):
+        for tl_name in self.tl_names:
+            if(yellowFlag[tl_name]==False):
+                self._set_green_phase(tl_name, actions[tl_name])
+
+        while steps_todo > 0:
+
+            traci.simulationStep()  # simulate 1 step in sumo
+            self._step += 1 # update the step counter
+            steps_todo -= 1
+            yellow_phase -= 1
+            if (yellow_phase == 0):
+                #set corresponding green_phase of all TLs that switched phases in this cycle
+                for tl_name in self.tl_names:
+                    if(yellowFlag[tl_name]==True):
+                        self._set_green_phase(tl_name, actions[tl_name])
+
+            self._add_queue_lengths()
+
+    def _collect_reward(self,tl_name):
         """
         Retrieve the waiting time of every car in the incoming roads
         """
-        total_waiting_times={}
-        car_list = traci.vehicle.getIDList()
-        for car_id in car_list:
-            #Accumulated waiting time contains waittime of previous intersection aswell! Either reset or keep as additional collaborative information
-            wait_time = traci.vehicle.getAccumulatedWaitingTime(car_id)
-            road_id = traci.vehicle.getRoadID(car_id)  # get the road id where the car is located
+        if(self.reward_metric=="waiting-times"):
+            total_waiting_times={}
+            car_list = traci.vehicle.getIDList()
+            for car_id in car_list:
+                #Accumulated waiting time contains waittime of previous intersection aswell! Either reset or keep as additional collaborative information
+                wait_time = traci.vehicle.getAccumulatedWaitingTime(car_id)
+                road_id = traci.vehicle.getRoadID(car_id)  # get the road id where the car is located
 
-            if road_id in self.edges_in[tl_name]:  # consider only the waiting times of cars in incoming roads
-                self._waiting_times[tl_name][car_id] = wait_time
-            else:
-                if car_id in self._waiting_times[tl_name]: # a car that was tracked has cleared the intersection
-                    del self._waiting_times[tl_name][car_id]
+                if road_id in self.edges_in[tl_name]:  # consider only the waiting times of cars in incoming roads
+                    self._waiting_times[tl_name][car_id] = wait_time
+                else:
+                    if car_id in self._waiting_times[tl_name]: # a car that was tracked has cleared the intersection
+                        del self._waiting_times[tl_name][car_id]
 
 
-        total_waiting_time = sum(self._waiting_times[tl_name].values())
-        #total_waiting_times[tl_name]=total_waiting_time
-        return total_waiting_time
+            total_waiting_time = sum(self._waiting_times[tl_name].values())
+            #total_waiting_times[tl_name]=total_waiting_time
+            return total_waiting_time
+        elif(self.reward_metric=="queue-lengths"):
+            halt_counts = []
+            # TODO: Try different metrics for rewards. maybe getLastStepMeanSpeed(self,edgeID)
+            for e in self.edges_in[tl_name]:
+                halt_counts.append(traci.edge.getLastStepHaltingNumber(e))
+            return sum(halt_counts)
 
 
     def _choose_action(self, tl_name,state, epsilon):
@@ -266,6 +405,7 @@ class Simulation:
         """
         for tl_name in self.tl_names:
             halt_counts=[]
+            # TODO: Try different metrics for rewards. maybe getLastStepMeanSpeed(self,edgeID)
             for e in self.edges_in[tl_name]:
                 halt_counts.append(traci.edge.getLastStepHaltingNumber(e))
             self._sum_queue_length[tl_name]=self._sum_queue_length[tl_name]+sum(halt_counts)
@@ -337,10 +477,17 @@ class Simulation:
     def colab_simple_state(self,tl_name,actions):
         #Extend state by one value for each adjacent tls which will contain the next action
         state = np.zeros(self._num_states[tl_name])
-        offset=len(self.adjacent_tls[tl_name])
+        offset=len(self.adjacent_tls[tl_name])*2
 
         for ix,adjacent_tl in enumerate(self.adjacent_tls[tl_name]):
-            state[ix]=actions[adjacent_tl]
+            if(int(actions[adjacent_tl])==-1):
+                binaryAction="00"
+            else:
+                binaryAction = '{0:02b}'.format(int(actions[adjacent_tl]))
+
+
+            state[ix*2]=binaryAction[0]
+            state[(ix*2)+1]=binaryAction[1]
 
 
         car_list = traci.vehicle.getIDList()

@@ -1,4 +1,8 @@
 import matplotlib.pyplot as plt
+import plotly.express as px
+import pandas as pd
+import plotly.graph_objects as go
+
 import os
 
 class Visualization:
@@ -11,7 +15,19 @@ class Visualization:
         """
         Produce a plot of performance of the agent over the session and save the relative data to txt
         """
+        import plotly.graph_objects as go
+
+        x = [*range(15)]
+
+        plotly_fig = go.Figure()
+
+
         for tl_name in tl_names:
+            plotly_fig.add_trace(go.Scatter(
+                x=[*range(len(data[tl_name]))],
+                y=data[tl_name],
+                connectgaps=True  # override default to connect the gaps
+            ))
 
             min_val = min(data[tl_name])
             max_val = max(data[tl_name])
@@ -31,4 +47,5 @@ class Visualization:
             with open(os.path.join(self._path, 'plot_'+filename + '_data_'+tl_name+'.txt'), "w") as file:
                 for value in data[tl_name]:
                         file.write("%s\n" % value)
-    
+
+        plotly_fig.write_image(self._path+"/"+filename+"_plot_plotly.png")
